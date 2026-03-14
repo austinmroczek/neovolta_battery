@@ -1,0 +1,24 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Connect to Solarman API",
+        "description": "Enter your Solarman developer API credentials. Your password will be stored as a SHA-256 hash.",
+        "data": {
+          "appid": "App ID",
+          "secret": "App Secret",
+          "username": "Username (email)",
+          "password": "Password"
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "Invalid credentials. Check your App ID, App Secret, username, and password.",
+      "cannot_connect": "Unable to connect to the Solarman API. Check your network connection.",
+      "unknown": "An unexpected error occurred."
+    },
+    "abort": {
+      "already_configured": "This NeoVolta station is already configured."
+    }
+  }
+}
