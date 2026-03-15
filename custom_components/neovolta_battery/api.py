@@ -238,7 +238,11 @@ class SolarmanApi:
         )
         self._check_response(response, f"device current data ({device_sn})")
 
+        # Matches keys like "SOC_BAP1", "Vtr3_BAP3", "Warn_BAP15"
         _pack_key_re = re.compile(r"BAP(\d{1,2})", re.IGNORECASE)
+        # Matches keys like "BAP_r_Ccg1", "BAP_r_Cdcg5", "BAP_r_Vcg3"
+        # where BAP_ is a prefix and the pack number is a trailing digit
+        _bap_prefix_re = re.compile(r"^BAP_.*?(\d{1,2})$", re.IGNORECASE)
         # Strips pack suffix from display names, handling typos
         # e.g. "- Battery Pack 1", "-Battert Pack 1", "-battey pack 6"
         _pack_name_suffix_re = re.compile(
@@ -281,7 +285,7 @@ class SolarmanApi:
             if "sn" in name_lower or "serial" in name_lower or key == "MAC_NUM1":
                 continue
 
-            pack_match = _pack_key_re.search(key)
+            pack_match = _pack_key_re.search(key) or _bap_prefix_re.match(key)
             if pack_match:
                 pack_num = int(pack_match.group(1))
                 if pack_num not in packs:
