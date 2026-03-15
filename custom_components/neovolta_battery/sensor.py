@@ -211,12 +211,23 @@ async def async_setup_entry(
                 NeoVoltaStationSensor(coordinator, entry, description, station_id)
             )
 
-    # Inverter sensors — dynamically created from whatever the device reports
     inverter_data: dict[str, Any] = coordinator.data.get("inverter_data", {})
-    for field_name in inverter_data:
+
+    # System-level inverter sensors
+    for field_name in inverter_data.get("system", {}):
         entities.append(
             NeoVoltaInverterSensor(coordinator, entry, field_name, inverter_sn)
         )
+
+    # Per-pack sensors — one HA device per installed battery pack
+    for pack_num, pack_data in inverter_data.get("packs", {}).items():
+        pack_sn = pack_data["serial_number"]
+        for field_name in pack_data["fields"]:
+            entities.append(
+                NeoVoltaBatteryPackSensor(
+                    coordinator, entry, field_name, inverter_sn, pack_num, pack_sn
+                )
+            )
 
     async_add_entities(entities)
 
@@ -296,5 +307,49 @@ class NeoVoltaInverterSensor(
 
     @property
     def native_value(self) -> Any:
-        inverter_data = self.coordinator.data.get("inverter_data", {})
-        return inverter_data.get(self._field_name)
+        system = self.coordinator.data.get("inverter_data", {}).get("system", {})
+        return system.get(self._field_name)
+
+
+class NeoVoltaBatteryPackSensor(
+    CoordinatorEntity[NeoVoltaCoordinator], SensorEntity
+):
+    """A dynamically created sensor for a single battery pack."""
+
+    _attr_has_entity_name = True
+
+    def __init__(
+        self,
+        coordinator: NeoVoltaCoordinator,
+        entry: ConfigEntry,
+        field_name: str,
+        inverter_sn: str,
+        pack_num: int,
+        pack_sn: str,
+    ) -> None:
+        super().__init__(coordinator)
+        self._field_name = field_name
+        self._inverter_sn = inverter_sn
+        self._pack_num = pack_num
+
+        self._attr_unique_id = f"{inverter_sn}_pack{pack_num}_{field_name}"
+        self._attr_name = field_name.replace("_", " ").title()
+
+        device_class, unit, state_class = _infer_sensor_metadata(field_name)
+        self._attr_device_class = device_class
+        self._attr_native_unit_of_measurement = unit
+        self._attr_state_class = state_class
+
+        self._attr_device_info = DeviceInfo(
+            identifiers={(DOMAIN, f"{inverter_sn}_pack{pack_num}")},
+            name=f"Battery Pack {pack_num}",
+            manufacturer="NeoVolta",
+            model="NV14",
+            serial_number=pack_sn,
+            via_device=(DOMAIN, inverter_sn),
+        )
+
+    @property
+    def native_value(self) -> Any:
+        packs = self.coordinator.data.get("inverter_data", {}).get("packs", {})
+        return packs.get(self._pack_num, {}).get("fields", {}).get(self._field_name)

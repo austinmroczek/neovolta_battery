@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 from typing import Any
 
 import aiohttp
@@ -212,11 +213,18 @@ class SolarmanApi:
     async def get_device_current_data(
         self, device_sn: str, device_id: int
     ) -> dict[str, Any]:
-        """Return flattened current data for a device.
+        """Return current data for a device separated into system and per-pack buckets.
 
         The raw API returns a ``dataList`` of ``{key, name, value}`` objects.
-        This method restructures that into ``{name: value}`` for easy lookup,
-        replacing spaces with underscores in names.
+        Fields whose key contains ``BAP{N}`` (e.g. ``SOC_BAP1``, ``Vtr1_BAP1``)
+        belong to battery pack N; all other fields are system-level.
+
+        Returns::
+
+            {
+                "system": {"Field_Name": value, ...},
+                "packs":  {1: {"Field_Name": value, ...}, 2: {...}, ...},
+            }
         """
         payload: dict[str, Any] = {"deviceSn": device_sn}
         if device_id:
@@ -230,14 +238,58 @@ class SolarmanApi:
         )
         self._check_response(response, f"device current data ({device_sn})")
 
-        result: dict[str, Any] = {}
-        for item in response.get("dataList", []):
-            name = item.get("name", "").replace(" ", "_")
-            name_lower = name.lower()
-            if not name:
-                continue
-            if "sn" in name_lower or "serial" in name_lower:
-                continue
-            result[name] = item.get("value")
+        _pack_key_re = re.compile(r"BAP(\d{1,2})", re.IGNORECASE)
+        # Strips pack suffix from display names, handling typos
+        # e.g. "- Battery Pack 1", "-Battert Pack 1", "-battey pack 6"
+        _pack_name_suffix_re = re.compile(
+            r"[-\s]+batt?er[ty]+\s+pack\s*\d+$", re.IGNORECASE
+        )
 
-        return result
+        data_list = response.get("dataList", [])
+
+        # First pass: parse MAC_NUM1 to find installed packs.
+        # The value is comma-separated where parts[N-1] is the serial number
+        # for pack N (1-based). An empty/whitespace entry means not installed.
+        pack_sns: dict[int, str] = {}
+        for item in data_list:
+            if item.get("key") == "MAC_NUM1":
+                parts = item.get("value", "").split(",")
+                for pack_num, sn in enumerate(parts, start=1):
+                    sn = sn.strip()
+                    if sn and pack_num <= 15:
+                        pack_sns[pack_num] = sn
+                break
+
+        # Pre-populate buckets for installed packs only
+        packs: dict[int, dict[str, Any]] = {
+            num: {"serial_number": sn, "fields": {}}
+            for num, sn in pack_sns.items()
+        }
+        system: dict[str, Any] = {}
+
+        # Second pass: route each field to system or the correct pack bucket
+        for item in data_list:
+            key = item.get("key", "")
+            raw_name = item.get("name", "")
+            value = item.get("value")
+
+            if not raw_name:
+                continue
+
+            # Skip serial number / IMEI fields — captured structurally above
+            name_lower = raw_name.lower()
+            if "sn" in name_lower or "serial" in name_lower or key == "MAC_NUM1":
+                continue
+
+            pack_match = _pack_key_re.search(key)
+            if pack_match:
+                pack_num = int(pack_match.group(1))
+                if pack_num not in packs:
+                    continue  # not in MAC_NUM1 → not installed, skip
+                clean_name = _pack_name_suffix_re.sub("", raw_name).strip()
+                field = (clean_name or raw_name).replace(" ", "_")
+                packs[pack_num]["fields"][field] = value
+            else:
+                system[raw_name.replace(" ", "_")] = value
+
+        return {"system": system, "packs": packs}
