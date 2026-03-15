@@ -233,7 +233,11 @@ class SolarmanApi:
         result: dict[str, Any] = {}
         for item in response.get("dataList", []):
             name = item.get("name", "").replace(" ", "_")
-            if name:
-                result[name] = item.get("value")
+            name_lower = name.lower()
+            if not name:
+                continue
+            if "sn" in name_lower or "serial" in name_lower:
+                continue
+            result[name] = item.get("value")
 
         return result
