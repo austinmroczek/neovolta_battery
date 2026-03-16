@@ -7,5 +7,5 @@
   "codeowners": ["@austinmroczek"],
   "config_flow": true,
   "iot_class": "cloud_polling",
-  "version": "2026.3.d"
+  "version": "1.0.0"
 }
