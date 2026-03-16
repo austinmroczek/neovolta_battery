@@ -15,11 +15,6 @@ from homeassistant.components.sensor import (
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import (
     PERCENTAGE,
-    UnitOfElectricCurrent,
-    UnitOfElectricPotential,
-    UnitOfEnergy,
-    UnitOfFrequency,
-    UnitOfPower,
     UnitOfTemperature,
 )
 from homeassistant.core import HomeAssistant
@@ -162,28 +157,32 @@ STATION_SENSOR_DESCRIPTIONS: tuple[StationSensorEntityDescription, ...] = (
 # Helpers for dynamic inverter sensors
 # ---------------------------------------------------------------------------
 
-def _infer_sensor_metadata(
-    name: str,
+def _metadata_from_unit(
+    unit: str | None,
 ) -> tuple[SensorDeviceClass | None, str | None, SensorStateClass | None]:
-    """Best-effort inference of device class, unit, and state class from name."""
-    name_lower = name.lower()
+    """Derive device class and state class from the API-provided unit string."""
+    if unit is None:
+        return None, None, None
 
-    if "voltage" in name_lower or name_lower.endswith("_v"):
-        return SensorDeviceClass.VOLTAGE, UnitOfElectricPotential.VOLT, SensorStateClass.MEASUREMENT
-    if "current" in name_lower or name_lower.endswith("_a"):
-        return SensorDeviceClass.CURRENT, UnitOfElectricCurrent.AMPERE, SensorStateClass.MEASUREMENT
-    if "power" in name_lower or name_lower.endswith("_w"):
-        return SensorDeviceClass.POWER, UnitOfPower.WATT, SensorStateClass.MEASUREMENT
-    if "energy" in name_lower or "kwh" in name_lower:
-        return SensorDeviceClass.ENERGY, UnitOfEnergy.KILO_WATT_HOUR, SensorStateClass.TOTAL_INCREASING
-    if "temperature" in name_lower or "temp" in name_lower:
+    u = unit.strip()
+
+    if u in ("V", "mV", "kV"):
+        return SensorDeviceClass.VOLTAGE, u, SensorStateClass.MEASUREMENT
+    if u in ("A", "mA"):
+        return SensorDeviceClass.CURRENT, u, SensorStateClass.MEASUREMENT
+    if u in ("W", "kW"):
+        return SensorDeviceClass.POWER, u, SensorStateClass.MEASUREMENT
+    if u in ("kWh", "Wh"):
+        return SensorDeviceClass.ENERGY, u, SensorStateClass.TOTAL_INCREASING
+    if u in ("°C", "C", "℃"):
         return SensorDeviceClass.TEMPERATURE, UnitOfTemperature.CELSIUS, SensorStateClass.MEASUREMENT
-    if "frequency" in name_lower or "freq" in name_lower or name_lower.endswith("_hz"):
-        return SensorDeviceClass.FREQUENCY, UnitOfFrequency.HERTZ, SensorStateClass.MEASUREMENT
-    if "soc" in name_lower:
+    if u == "Hz":
+        return SensorDeviceClass.FREQUENCY, u, SensorStateClass.MEASUREMENT
+    if u == "%":
         return SensorDeviceClass.BATTERY, PERCENTAGE, SensorStateClass.MEASUREMENT
 
-    return None, None, None
+    # Unknown unit — expose the raw unit but no device class
+    return None, u, None
 
 
 # ---------------------------------------------------------------------------
@@ -214,18 +213,21 @@ async def async_setup_entry(
     inverter_data: dict[str, Any] = coordinator.data.get("inverter_data", {})
 
     # System-level inverter sensors
-    for field_name in inverter_data.get("system", {}):
+    for field_name, entry_data in inverter_data.get("system", {}).items():
         entities.append(
-            NeoVoltaInverterSensor(coordinator, entry, field_name, inverter_sn)
+            NeoVoltaInverterSensor(
+                coordinator, entry, field_name, inverter_sn, entry_data.get("unit")
+            )
         )
 
     # Per-pack sensors — one HA device per installed battery pack
     for pack_num, pack_data in inverter_data.get("packs", {}).items():
         pack_sn = pack_data["serial_number"]
-        for field_name in pack_data["fields"]:
+        for field_name, entry_data in pack_data["fields"].items():
             entities.append(
                 NeoVoltaBatteryPackSensor(
-                    coordinator, entry, field_name, inverter_sn, pack_num, pack_sn
+                    coordinator, entry, field_name, inverter_sn, pack_num, pack_sn,
+                    entry_data.get("unit"),
                 )
             )
 
@@ -283,6 +285,7 @@ class NeoVoltaInverterSensor(
         entry: ConfigEntry,
         field_name: str,
         inverter_sn: str,
+        api_unit: str | None,
     ) -> None:
         super().__init__(coordinator)
         self._field_name = field_name
@@ -291,7 +294,7 @@ class NeoVoltaInverterSensor(
         self._attr_unique_id = f"{inverter_sn}_{field_name}"
         self._attr_name = field_name.replace("_", " ").title()
 
-        device_class, unit, state_class = _infer_sensor_metadata(field_name)
+        device_class, unit, state_class = _metadata_from_unit(api_unit)
         self._attr_device_class = device_class
         self._attr_native_unit_of_measurement = unit
         self._attr_state_class = state_class
@@ -308,7 +311,7 @@ class NeoVoltaInverterSensor(
     @property
     def native_value(self) -> Any:
         system = self.coordinator.data.get("inverter_data", {}).get("system", {})
-        return system.get(self._field_name)
+        return system.get(self._field_name, {}).get("value")
 
 
 class NeoVoltaBatteryPackSensor(
@@ -326,6 +329,7 @@ class NeoVoltaBatteryPackSensor(
         inverter_sn: str,
         pack_num: int,
         pack_sn: str,
+        api_unit: str | None,
     ) -> None:
         super().__init__(coordinator)
         self._field_name = field_name
@@ -335,7 +339,7 @@ class NeoVoltaBatteryPackSensor(
         self._attr_unique_id = f"{inverter_sn}_pack{pack_num}_{field_name}"
         self._attr_name = field_name.replace("_", " ").title()
 
-        device_class, unit, state_class = _infer_sensor_metadata(field_name)
+        device_class, unit, state_class = _metadata_from_unit(api_unit)
         self._attr_device_class = device_class
         self._attr_native_unit_of_measurement = unit
         self._attr_state_class = state_class
@@ -352,4 +356,4 @@ class NeoVoltaBatteryPackSensor(
     @property
     def native_value(self) -> Any:
         packs = self.coordinator.data.get("inverter_data", {}).get("packs", {})
-        return packs.get(self._pack_num, {}).get("fields", {}).get(self._field_name)
+        return packs.get(self._pack_num, {}).get("fields", {}).get(self._field_name, {}).get("value")

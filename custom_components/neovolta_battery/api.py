@@ -271,11 +271,14 @@ class SolarmanApi:
         }
         system: dict[str, Any] = {}
 
-        # Second pass: route each field to system or the correct pack bucket
+        # Second pass: route each field to system or the correct pack bucket.
+        # Each entry is {"value": ..., "unit": ...} so consumers can use the
+        # API-provided unit directly instead of guessing from the field name.
         for item in data_list:
             key = item.get("key", "")
             raw_name = item.get("name", "")
             value = item.get("value")
+            unit = item.get("unit")
 
             if not raw_name:
                 continue
@@ -285,6 +288,8 @@ class SolarmanApi:
             if "sn" in name_lower or "serial" in name_lower or key == "MAC_NUM1":
                 continue
 
+            entry = {"value": value, "unit": unit}
+
             pack_match = _pack_key_re.search(key) or _bap_prefix_re.match(key)
             if pack_match:
                 pack_num = int(pack_match.group(1))
@@ -292,8 +297,8 @@ class SolarmanApi:
                     continue  # not in MAC_NUM1 → not installed, skip
                 clean_name = _pack_name_suffix_re.sub("", raw_name).strip()
                 field = (clean_name or raw_name).replace(" ", "_")
-                packs[pack_num]["fields"][field] = value
+                packs[pack_num]["fields"][field] = entry
             else:
-                system[raw_name.replace(" ", "_")] = value
+                system[raw_name.replace(" ", "_")] = entry
 
         return {"system": system, "packs": packs}
