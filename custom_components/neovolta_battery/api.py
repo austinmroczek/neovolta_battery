@@ -121,7 +121,7 @@ class SolarmanApi:
         code = int(response.get("code") or 0)
         msg = response.get("msg", "unknown error")
 
-        if code in (401, 2101002):
+        if code in (401, 2101002, 2101019):
             raise SolarmanAuthError(f"Authentication error during {operation}: {msg}")
 
         if code == 3501004:
