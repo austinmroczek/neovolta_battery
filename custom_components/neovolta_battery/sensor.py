@@ -261,7 +261,7 @@ class NeoVoltaStationSensor(
         self._attr_unique_id = f"{station_id}_{description.key}"
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, str(station_id))},
-            name="NeoVolta NV14",
+            name="Station",
             manufacturer="NeoVolta",
             model="NV14",
             model_id="NV14-US",
@@ -303,7 +303,7 @@ class NeoVoltaInverterSensor(
 
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, inverter_sn)},
-            name="NeoVolta NV14",
+            name="Battery System",
             manufacturer="NeoVolta",
             model="NV14",
             model_id="NV14-US",
