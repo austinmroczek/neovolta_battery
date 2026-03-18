@@ -21,9 +21,10 @@ DEFAULT_SCAN_INTERVAL = 300  # seconds
 # These are logged once at startup and excluded from sensor entities.
 STATIC_FIELDS: frozenset[str] = frozenset({
     "Battery_Rated_Capacity",
+    "Battery_Type",
     "Battery_Voltage_Type",
     "Discharge_Current_Limit",
-    "General_Settings",
+    "General_settings",
     "Grid_Type",
     "HMI",
     "Inverter_Type",
@@ -38,5 +39,5 @@ STATIC_FIELDS: frozenset[str] = frozenset({
 # dropped entirely from the returned data.
 IGNORED_FIELDS: frozenset[str] = frozenset({
     "BMS_SOC",
-    "SOC",
+    "SoC",
 })
