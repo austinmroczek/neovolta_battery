@@ -16,3 +16,15 @@ CONF_LOGGER_ID = "logger_id"
 # API
 SOLARMAN_URL = "https://globalapi.solarmanpv.com"
 DEFAULT_SCAN_INTERVAL = 300  # seconds
+
+# Inverter fields that are static (do not change during operation).
+# These are logged once at startup and excluded from sensor entities.
+STATIC_FIELDS: frozenset[str] = frozenset({
+    "Battery_Voltage_Type",
+    "HMI",
+    "Inverter_Type",
+    "Lithium_Battery_Version_Number",
+    "MAIN_1",
+    "MAIN_2",
+    "Rated_Power",
+})

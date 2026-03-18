@@ -12,7 +12,7 @@ from typing import Any
 
 import aiohttp
 
-from .const import SOLARMAN_URL
+from .const import SOLARMAN_URL, STATIC_FIELDS
 
 LOGGER = logging.getLogger(__name__)
 
@@ -275,6 +275,7 @@ class SolarmanApi:
             for num, sn in pack_sns.items()
         }
         system: dict[str, Any] = {}
+        static: dict[str, Any] = {}
 
         # Second pass: route each field to system or the correct pack bucket.
         # Each entry is {"value": ..., "unit": ...} so consumers can use the
@@ -304,6 +305,10 @@ class SolarmanApi:
                 field = (clean_name or raw_name).replace(" ", "_")
                 packs[pack_num]["fields"][field] = entry
             else:
-                system[raw_name.replace(" ", "_")] = entry
+                field = raw_name.replace(" ", "_")
+                if field in STATIC_FIELDS:
+                    static[field] = entry
+                else:
+                    system[field] = entry
 
-        return {"system": system, "packs": packs}
+        return {"static": static, "system": system, "packs": packs}

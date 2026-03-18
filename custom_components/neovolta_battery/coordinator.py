@@ -25,6 +25,7 @@ from .const import (
     CONF_USERNAME,
     DEFAULT_SCAN_INTERVAL,
     DOMAIN,
+    STATIC_FIELDS,
 )
 
 LOGGER = logging.getLogger(__name__)
@@ -79,6 +80,20 @@ class NeoVoltaCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 raise UpdateFailed(f"Error after re-auth: {err}") from err
         except SolarmanApiError as err:
             raise UpdateFailed(f"Error communicating with API: {err}") from err
+
+    def log_static_info(self) -> None:
+        """Log static device fields once at startup."""
+        static = self.data.get("inverter_data", {}).get("static", {})
+        info = {
+            field.replace("_", " "): static[field]["value"]
+            for field in STATIC_FIELDS
+            if field in static
+        }
+        if info:
+            LOGGER.info(
+                "NeoVolta device info: %s",
+                ", ".join(f"{k}={v}" for k, v in info.items()),
+            )
 
     async def _fetch_data(self) -> dict[str, Any]:
         """Fetch all data from the API."""

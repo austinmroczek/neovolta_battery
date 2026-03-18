@@ -266,6 +266,7 @@ class NeoVoltaStationSensor(
             model="NV14",
             model_id="NV14-US",
             serial_number=entry.data.get(CONF_INVERTER_SN) or None,
+            
         )
 
     @property
