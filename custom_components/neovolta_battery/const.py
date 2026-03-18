@@ -28,3 +28,10 @@ STATIC_FIELDS: frozenset[str] = frozenset({
     "MAIN_2",
     "Rated_Power",
 })
+
+# Inverter fields that duplicate data available elsewhere and should be
+# dropped entirely from the returned data.
+IGNORED_FIELDS: frozenset[str] = frozenset({
+    "BMS_SOC",
+    "SOC",
+})

@@ -12,7 +12,7 @@ from typing import Any
 
 import aiohttp
 
-from .const import SOLARMAN_URL, STATIC_FIELDS
+from .const import IGNORED_FIELDS, SOLARMAN_URL, STATIC_FIELDS
 
 LOGGER = logging.getLogger(__name__)
 
@@ -294,6 +294,10 @@ class SolarmanApi:
             if "sn" in name_lower or "serial" in name_lower or key == "MAC_NUM1":
                 continue
 
+            field = raw_name.replace(" ", "_")
+            if field in IGNORED_FIELDS:
+                continue
+
             entry = {"value": value, "unit": unit}
 
             pack_match = _pack_key_re.search(key) or _bap_prefix_re.match(key)
@@ -305,7 +309,6 @@ class SolarmanApi:
                 field = (clean_name or raw_name).replace(" ", "_")
                 packs[pack_num]["fields"][field] = entry
             else:
-                field = raw_name.replace(" ", "_")
                 if field in STATIC_FIELDS:
                     static[field] = entry
                 else:
