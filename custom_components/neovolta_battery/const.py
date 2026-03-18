@@ -20,12 +20,17 @@ DEFAULT_SCAN_INTERVAL = 300  # seconds
 # Inverter fields that are static (do not change during operation).
 # These are logged once at startup and excluded from sensor entities.
 STATIC_FIELDS: frozenset[str] = frozenset({
+    "Battery_Rated_Capacity",
     "Battery_Voltage_Type",
+    "Discharge_Current_Limit",
+    "General_Settings",
+    "Grid_Type",
     "HMI",
     "Inverter_Type",
     "Lithium_Battery_Version_Number",
     "MAIN_1",
     "MAIN_2",
+    "Protocol_Version",
     "Rated_Power",
 })
 
