@@ -188,6 +188,32 @@ def _metadata_from_unit(
 
 
 # ---------------------------------------------------------------------------
+# DeviceInfo factories
+# ---------------------------------------------------------------------------
+
+def _inverter_device_info(inverter_sn: str) -> DeviceInfo:
+    return DeviceInfo(
+        identifiers={(DOMAIN, inverter_sn)},
+        name="Battery System",
+        manufacturer="NeoVolta",
+        model="NV14",
+        model_id="NV14-US",
+        serial_number=inverter_sn or None,
+    )
+
+
+def _pack_device_info(inverter_sn: str, pack_num: int, pack_sn: str) -> DeviceInfo:
+    return DeviceInfo(
+        identifiers={(DOMAIN, f"{inverter_sn}_pack{pack_num}")},
+        name=f"Battery Pack {pack_num}",
+        manufacturer="NeoVolta",
+        model="NV14",
+        serial_number=pack_sn,
+        via_device=(DOMAIN, inverter_sn),
+    )
+
+
+# ---------------------------------------------------------------------------
 # Platform setup
 # ---------------------------------------------------------------------------
 
@@ -259,15 +285,7 @@ class NeoVoltaStationSensor(
         self.entity_description = description
         self._station_id = station_id
         self._attr_unique_id = f"{station_id}_{description.key}"
-        self._attr_device_info = DeviceInfo(
-            identifiers={(DOMAIN, str(station_id))},
-            name="Station",
-            manufacturer="NeoVolta",
-            model="NV14",
-            model_id="NV14-US",
-            serial_number=entry.data.get(CONF_INVERTER_SN) or None,
-            
-        )
+        self._attr_device_info = _inverter_device_info(entry.data.get(CONF_INVERTER_SN, ""))
 
     @property
     def native_value(self) -> Any:
@@ -302,14 +320,7 @@ class NeoVoltaInverterSensor(
         self._attr_native_unit_of_measurement = unit
         self._attr_state_class = state_class
 
-        self._attr_device_info = DeviceInfo(
-            identifiers={(DOMAIN, inverter_sn)},
-            name="Battery System",
-            manufacturer="NeoVolta",
-            model="NV14",
-            model_id="NV14-US",
-            serial_number=inverter_sn or None,
-        )
+        self._attr_device_info = _inverter_device_info(inverter_sn)
 
     @property
     def native_value(self) -> Any:
@@ -347,14 +358,7 @@ class NeoVoltaBatteryPackSensor(
         self._attr_native_unit_of_measurement = unit
         self._attr_state_class = state_class
 
-        self._attr_device_info = DeviceInfo(
-            identifiers={(DOMAIN, f"{inverter_sn}_pack{pack_num}")},
-            name=f"Battery Pack {pack_num}",
-            manufacturer="NeoVolta",
-            model="NV14",
-            serial_number=pack_sn,
-            via_device=(DOMAIN, inverter_sn),
-        )
+        self._attr_device_info = _pack_device_info(inverter_sn, pack_num, pack_sn)
 
     @property
     def native_value(self) -> Any:
